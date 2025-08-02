@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import requests
 import os
+import urllib.parse
 
 app = Flask(__name__)
 
@@ -21,7 +22,6 @@ def check_wb_position():
     position_global = 0
 
     for page in range(1, max_pages + 1):
-        # Начальный запрос с keyword
         params = {
             "query": keyword,
             "page": page,
@@ -32,27 +32,38 @@ def check_wb_position():
         }
 
         try:
-            # Поддержка вложенных preset
-            for _ in range(5):  # максимум 5 перенаправлений
+            for _ in range(5):  # максимум 5 редиректов
                 res = requests.get("https://search.wb.ru/exactmatch/ru/common/v4/search", headers=headers, params=params, timeout=10)
                 data = res.json()
 
                 if "data" in data and "products" in data["data"]:
-                    break  # получили выдачу
+                    products = data["data"]["products"]
+                    break
 
                 if "query" in data and "preset=" in data["query"]:
-                    preset = data["query"].split("=")[1]
+                    query_string = data["query"]
+                    parsed = dict(urllib.parse.parse_qsl(query_string))
                     params = {
-                        "preset": preset,
                         "page": page,
                         "resultset": "catalog",
                         "query": "1"
                     }
+                    params.update(parsed)
                 else:
                     return jsonify({"error": "No products and no preset redirect"}), 500
 
-            products = data.get("data", {}).get("products", [])
             ids = [p["id"] for p in products]
+
+            if len(products) == 1 and products[0]["id"] == article:
+                return jsonify({
+                    "found": True,
+                    "article": article,
+                    "keyword": keyword,
+                    "page": page,
+                    "position_on_page": 1,
+                    "global_position": position_global + 1,
+                    "message": "Found as single result"
+                })
 
             if not ids:
                 break
