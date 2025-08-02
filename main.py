@@ -21,21 +21,36 @@ def check_wb_position():
     position_global = 0
 
     for page in range(1, max_pages + 1):
-        search_url = "https://search.wb.ru/exactmatch/ru/common/v4/search"
+        # Начальный запрос с keyword
         params = {
             "query": keyword,
-            "page": page
+            "page": page,
+            "resultset": "catalog"
         }
         headers = {
             "User-Agent": "Mozilla/5.0"
         }
 
         try:
-            res = requests.get(search_url, headers=headers, params=params, timeout=10)
-            if res.status_code != 200:
-                return jsonify({"error": f"Wildberries API error (page {page})", "status": res.status_code}), 502
+            # Поддержка вложенных preset
+            for _ in range(5):  # максимум 5 перенаправлений
+                res = requests.get("https://search.wb.ru/exactmatch/ru/common/v4/search", headers=headers, params=params, timeout=10)
+                data = res.json()
 
-            data = res.json()
+                if "data" in data and "products" in data["data"]:
+                    break  # получили выдачу
+
+                if "query" in data and "preset=" in data["query"]:
+                    preset = data["query"].split("=")[1]
+                    params = {
+                        "preset": preset,
+                        "page": page,
+                        "resultset": "catalog",
+                        "query": "1"
+                    }
+                else:
+                    return jsonify({"error": "No products and no preset redirect"}), 500
+
             products = data.get("data", {}).get("products", [])
             ids = [p["id"] for p in products]
 
