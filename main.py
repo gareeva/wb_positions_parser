@@ -31,6 +31,8 @@ def check_wb_position():
             "User-Agent": "Mozilla/5.0"
         }
 
+        products = []
+
         try:
             for _ in range(5):  # максимум 5 редиректов
                 res = requests.get("https://search.wb.ru/exactmatch/ru/common/v4/search", headers=headers, params=params, timeout=10)
